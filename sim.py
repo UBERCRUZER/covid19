@@ -2,12 +2,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from sklearn.linear_model import LinearRegression
-
 from datetime import datetime as dt
 from datetime import timedelta
-
-from dateutil.parser import parse
 
 import random
 import time
@@ -27,7 +23,7 @@ def initialInfect(city, initialCount, dateToday, recoveryTime):
     return (city)
 
 
-def contactSim(city, recoveryTime, date, contactRate=2, probInfection=.1):
+def contactSim(city, recoveryTime, date, contactRate=6, probInfection=.05):
 
     newInfections = 0 
     contagiousList = city[(city['infected']==True) & (city['recovered']==False) & 
@@ -57,38 +53,84 @@ def convertRecovered(city, date):
     toRecover = city[city['recovery_day'] == date].index.tolist()
     city.loc[toRecover, 'recovered'] = True
 
-    return (city)
+    return city, len(toRecover)
 
 
+#-----------------------------------------MODEL VARIABLES--------------------------------------
+
+# ordinal number of April 6th, 2020
+dayStart = 737521
+
+# number of simulations days
+simDuration = 180
+
+# population of city
+population = 10000 
+
+# how long does the disease last?
+infectionDuration = 15
+
+# how many initial infections
+initialInfections = 1
+
+# number of infections before quarantine starts
+quarantineInfectionStart = 400
+
+# days quarantine should last
+quarantineDuration = 60
+
+#----------------------------------------------------------------------------------------------
 
 start = time.clock()
 segmentStart = time.clock()
 
-dayStart = 737521
+susceptible = population - initialInfections
 
-simDuration = 180
-POPULATION = 10000 # nyCountyPopulation
-SPREAD_FACTOR = 1
-DAYS_TO_RECOVER = 10
-INITIALLY_AFFECTED = 1
-
-day0summary = {'new':[INITIALLY_AFFECTED], 'total':[INITIALLY_AFFECTED]}
+day0summary = {'new':[initialInfections], 'susceptible':[susceptible], 
+               'infected':[initialInfections], 'recovered':[0]}
 summary = pd.DataFrame(day0summary, index = [dayStart])
 
-city = pd.DataFrame(data={'id': np.arange(POPULATION), 'infected': False, 'recovery_day': None, 
+city = pd.DataFrame(data={'id': np.arange(population), 'infected': False, 'recovery_day': None, 
                           'recovered': False, 'quarantined': False, 'detected': False, 'numInfected': 0})
 city = city.set_index('id')
 
 new = 0
 
-city = initialInfect(city, INITIALLY_AFFECTED, dayStart, DAYS_TO_RECOVER)
+city = initialInfect(city, initialInfections, dayStart, infectionDuration)
+
+quarantineDayStart = 0
+quarantineDayEnd = 0
+totalRecovered = 0
+totalInfected = initialInfections
+totalSusceptible = population - initialInfections
 
 for today in range(1+dayStart, simDuration+dayStart):
-    city, newInfections = contactSim(city, DAYS_TO_RECOVER, today)
-    city = convertRecovered(city, today)
-    total = len(city[city['infected']==True])
 
-    daySummary = {'new':newInfections, 'total':total}
+    if (len(city[city.infected==True]) < quarantineInfectionStart):
+        print('base')
+        city, newInfections = contactSim(city, infectionDuration, today)
+        quarantineDayStart = today
+        quarantineDayEnd = today
+
+    elif ((len(city[city.infected==True]) > quarantineInfectionStart) & 
+          (quarantineDayStart + quarantineDuration > today)):
+        print('in quarantine')
+        city, newInfections = contactSim(city, infectionDuration, today, contactRate=2)
+        quarantineDayEnd = today
+    
+    elif ((len(city[city.infected==True]) > quarantineInfectionStart) & 
+          (quarantineDayStart + quarantineDuration < today)):
+        city, newInfections = contactSim(city, infectionDuration, today, contactRate=4)
+        print('end quarantine')
+
+
+    city, newRecovered = convertRecovered(city, today)
+    totalRecovered = len(city[city['recovered']==True])
+    totalInfected = len(city[(city['infected']==True) & (city['recovered']==False)])
+    totalSusceptible = population - totalRecovered - totalInfected
+
+    daySummary = {'new':newInfections, 'susceptible':[totalSusceptible], 
+                  'infected':[totalInfected], 'recovered':[totalRecovered]}
     newDay = pd.DataFrame(daySummary, index = [today])
     summary = summary.append(newDay)
 
@@ -102,7 +144,7 @@ for today in range(1+dayStart, simDuration+dayStart):
 totalTime = time.clock() - start
 print("Total Elapsed Time:", round(totalTime, 2), "seconds")
 print("")
-print("Rnought:" , round(city.numInfected.mean(), 2))
+print("Rnought:" , round(city[city['infected']==True].numInfected.mean(), 2))
 
 
 
@@ -113,20 +155,29 @@ summary = summary.rename(index=dateRename)
 
 
 plt.figure(figsize=(22, 10))
+plt.plot(summary.susceptible.rolling(window=7).mean(), label='Susceptible', color='blue')
+plt.plot(summary.infected.rolling(window=7).mean(), label='Infected', color='red')
+plt.plot(summary.recovered.rolling(window=7).mean(), label='Recovered', color='green')
+plt.title('SIR Simulation')
+plt.axvline(dt.fromordinal(quarantineDayStart), color='k', label='Quarantine Start')
+plt.axvline(dt.fromordinal(quarantineDayEnd), color='k', label='Quarantine End')
+plt.legend(loc='left')
+plt.ylim(top=population)
+plt.xticks(rotation='vertical')
+plt.show()
+
+plt.figure(figsize=(22, 10))
 plt.plot(summary.new)
 plt.title('New Infections per Day')
+plt.axvline(dt.fromordinal(quarantineDayStart), color='k', label='Quarantine Start')
+plt.axvline(dt.fromordinal(quarantineDayEnd), color='k', label='Quarantine End')
 plt.xticks(rotation='vertical')
+plt.legend(loc='left')
 plt.show()
 
 plt.figure(figsize=(22, 10))
-plt.plot(summary.total)
-plt.title('Total Infections per Day')
-plt.xticks(rotation='vertical')
-plt.show()
-
-plt.figure(figsize=(22, 10))
-plt.hist(city.numInfected)
-plt.title('Rnought')
+plt.hist(city[city['infected']==True].numInfected, bins=city.numInfected.max())
+plt.title('Num Infected Distribution')
 plt.xticks(rotation='vertical')
 plt.show()
 
