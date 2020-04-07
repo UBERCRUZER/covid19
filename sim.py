@@ -55,17 +55,17 @@ plt.show()
 # %%
 
 
-regressor = LinearRegression()  
-regressor.fit(np.array(x).reshape(-1, 1), y)
+regressorConf = LinearRegression()  
+regressorConf.fit(np.array(x).reshape(-1, 1), y)
 
 lastDay = byStateDF[byStateDF.index=='California'].columns[-1]
 lastDay = pd.to_datetime(lastDay)
 
 predRange = pd.to_datetime(pd.date_range(lastDay, periods=10).tolist())
-predRange = [date.toordinal() for date in predRange]
+predRange = [dt.toordinal(date) for date in predRange]
 predRange = np.array(predRange)
 
-yPred = regressor.predict(predRange.reshape(-1, 1))
+yPred = regressorConf.predict(predRange.reshape(-1, 1))
 
 x = [dt.fromordinal(date) for date in x]
 predRange = [dt.fromordinal(date) for date in predRange]
@@ -81,7 +81,7 @@ plt.show()
 # %%
 
 
-regressor.coef_[0,0]
+regressorConf.coef_[0,0]
 
 
 
@@ -91,20 +91,13 @@ nyCountyPopulation = 1664727
 nyDF = confDF[(confDF['Province_State']=='New York') & (confDF['Admin2']=='New York')]
 
 x = pd.to_datetime(nyDF.iloc[:,15:].transpose().index.tolist())
-x = [date.toordinal() for date in x]
+x = [dt.toordinal(date) for date in x]
 x = np.array(x)
 
 
 y = nyDF.iloc[:,15:].transpose()
 y = np.array(y).reshape(-1)
 
-
-
-# %%
-
-# y[-1]
-
-x[-1]
 
 # %%
 
@@ -116,92 +109,88 @@ def initialInfect(city, initialCount, dateToday, recoveryTime):
     city.loc[city.index.isin(infected),'infected'] = True
     city.loc[city.index.isin(infected),'recovery_day'] = dateToday + recoveryTime
 
+    return (city)
 
+
+def contactSim(city, recoveryTime, date, contactRate=2, probInfection=.1):
+
+    newInfections = 0 
+    contagiousList = city[(city['infected']==True) & (city['recovered']==False) & 
+                        (city['quarantined']==False)].index.tolist()
+    suceptableList = city[(city['infected']==False) & (city['recovered']==False)].index.tolist()
+
+    for i in contagiousList:
+        if (len(suceptableList) < contactRate):
+            contactRate = len(suceptableList)
+        potentialList = random.sample(suceptableList, contactRate)
+        for j in potentialList:
+            rand = random.random()
+            if (probInfection > rand):
+                city.loc[j, 'infected'] = True
+                city.loc[j, 'recovery_day'] = date + recoveryTime
+                # print(j, rand, date)
+                
+                newInfections = newInfections + 1
+    # print(newInfections)
+    return city, newInfections
+
+def convertRecovered(city, date):
+    toRecover = city[city['recovery_day'] == date].index.tolist()
+    city.loc[toRecover, 'recovered'] = True
 
     return (city)
 
-date = 
-city = initialInfect(city, INITIALLY_AFFECTED, x[-1], DAYS_TO_RECOVER)
+
+
 
 #%%
 
 
-# asdf = np.arange(nyCountyPopulation).tolist()
-# asdf = random.sample(asdf, 2)
-# city.loc[asdf,'infected']
+dayStart = x[-1]
 
-len(city[city['infected']==True])
-
-# city = pd.DataFrame(data={'id': np.arange(10), 
-#                     'infected': False, 'infection_day': None, 'recovered': False, 'quarantined': False})
-# city = city.set_index('id')
-
-# samp = random.sample(np.arange(len(city)).tolist(), 3)
-
-# city.loc[city.index.isin(samp),'infected'] = True
-
-# city
-
-#%%
-
-
-
-DAYS = 180
-POPULATION = 10 # nyCountyPopulation
-Rnought = 2
+simDuration = 40
+POPULATION = 1000 # nyCountyPopulation
+SPREAD_FACTOR = 1
 DAYS_TO_RECOVER = 10
-INITIALLY_AFFECTED = 3
+INITIALLY_AFFECTED = 1
+
+day0summary = {'new':[INITIALLY_AFFECTED], 'total':[INITIALLY_AFFECTED]}
+summary = pd.DataFrame(day0summary, index = [dayStart])
 
 city = pd.DataFrame(data={'id': np.arange(POPULATION), 
-                    'infected': False, 'recovery_day': None, 'recovered': False, 'quarantined': False})
+                    'infected': False, 'recovery_day': None, 'recovered': False, 'quarantined': False, 'detected': False})
 city = city.set_index('id')
 
+new = 0
+
+city = initialInfect(city, INITIALLY_AFFECTED, x[-1], DAYS_TO_RECOVER)
+
+for today in range(1+dayStart, simDuration+dayStart):
+    city, newInfections = contactSim(city, DAYS_TO_RECOVER, today)
+    city = convertRecovered(city, today)
+    total = len(city[city['infected']==True])
+
+    daySummary = {'new':newInfections, 'total':total}
+    newDay = pd.DataFrame(daySummary, index = [today])
+    summary = summary.append(newDay)
+    # print(today)
 
 
 
 
+#%%
+
+
+dateList = [dt.fromordinal(date) for date in summary.index.tolist()]
+dateRename = dict(zip(summary.index.tolist(), dateList))
+
+summary = summary.rename(index=dateRename)
+
+summary.total.plot()
+
+#%%
 
 
 
-firstCases = city.sample(INITIALLY_AFFECTED, replace=False)
-city.loc[firstCases.index, 'infected'] = True
-city.loc[firstCases.index, 'recovery_day'] = DAYS_TO_RECOVER
-
-stat_active_cases = [INITIALLY_AFFECTED]
-stat_recovered = [0]
-
-for today in range(1, DAYS):
-    # Mark recovered people
-    city.loc[city['recovery_day'] == today, 'recovered'] = True
-    city.loc[city['recovery_day'] == today, 'infected'] = False
-
-    spreadingPeople = city[ (city['infected'] == True)]
-    totalCasesToday = round(len(spreadingPeople) * SPREAD_FACTOR)
-    casesToday = city.sample(totalCasesToday, replace=True)
-    # Ignore already infected or recovered people
-    casesToday = casesToday[ (casesToday['infected'] == False) & (casesToday['recovered'] == False) ]
-    # Mark the new cases as infected
-    city.loc[casesToday.index, 'infected'] = True
-    city.loc[casesToday.index, 'recovery_day'] = today + DAYS_TO_RECOVER
-
-    stat_active_cases.append(len(city[city['infected'] == True]))
-    stat_recovered.append(len(city[city['recovered'] == True]))
-    # if today >= 5:
-    #     SPREAD_FACTOR = 1
-    # if today >= 10:
-    #     SPREAD_FACTOR = 0.1
-
-
-fig = plt.figure(figsize=(16, 8))
-
-plt.bar(x=np.arange(DAYS), height=stat_active_cases, color="red")
-plt.text(145, 90000, f"SPREAD_FACTOR = {SPREAD_FACTOR}", fontsize=14)
-plt.show()
-
-
-# %%
-
-
-city
 
 # %%
