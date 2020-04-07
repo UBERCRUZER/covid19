@@ -8,6 +8,8 @@ from datetime import timedelta
 import random
 import time
 
+import os
+
 
 
 # %%
@@ -31,7 +33,6 @@ def contactSim(city, recoveryTime, date, contactRate=6, probInfection=.05):
 
     suceptableList = city.index.tolist()
 
-
     for i in contagiousList:
         suceptableList.remove(i)
         if (len(suceptableList) < contactRate):
@@ -48,6 +49,7 @@ def contactSim(city, recoveryTime, date, contactRate=6, probInfection=.05):
     # print(newInfections)
         suceptableList.append(i)
     return city, newInfections
+
 
 def convertRecovered(city, date):
     toRecover = city[city['recovery_day'] == date].index.tolist()
@@ -107,21 +109,21 @@ totalSusceptible = population - initialInfections
 for today in range(1+dayStart, simDuration+dayStart):
 
     if (len(city[city.infected==True]) < quarantineInfectionStart):
-        print('base')
+        # print('base')
         city, newInfections = contactSim(city, infectionDuration, today)
         quarantineDayStart = today
         quarantineDayEnd = today
 
     elif ((len(city[city.infected==True]) > quarantineInfectionStart) & 
           (quarantineDayStart + quarantineDuration > today)):
-        print('in quarantine')
+        # print('in quarantine')
         city, newInfections = contactSim(city, infectionDuration, today, contactRate=2)
         quarantineDayEnd = today
     
     elif ((len(city[city.infected==True]) > quarantineInfectionStart) & 
           (quarantineDayStart + quarantineDuration < today)):
         city, newInfections = contactSim(city, infectionDuration, today, contactRate=4)
-        print('end quarantine')
+        # print('end quarantine')
 
 
     city, newRecovered = convertRecovered(city, today)
@@ -153,6 +155,7 @@ dateRename = dict(zip(summary.index.tolist(), dateList))
 
 summary = summary.rename(index=dateRename)
 
+SIR_path = os.path.join(os.getcwd(), 'plots', 'SIR.png')
 
 plt.figure(figsize=(22, 10))
 plt.plot(summary.susceptible.rolling(window=7).mean(), label='Susceptible', color='blue')
@@ -164,21 +167,30 @@ plt.axvline(dt.fromordinal(quarantineDayEnd), color='k', label='Quarantine End')
 plt.legend(loc='left')
 plt.ylim(top=population)
 plt.xticks(rotation='vertical')
+plt.savefig(SIR_path)
 plt.show()
 
+
+new_path = os.path.join(os.getcwd(), 'plots', 'new.png')
+
 plt.figure(figsize=(22, 10))
-plt.plot(summary.new)
+plt.plot(summary.new.rolling(window=7).mean())
 plt.title('New Infections per Day')
 plt.axvline(dt.fromordinal(quarantineDayStart), color='k', label='Quarantine Start')
 plt.axvline(dt.fromordinal(quarantineDayEnd), color='k', label='Quarantine End')
 plt.xticks(rotation='vertical')
 plt.legend(loc='left')
+plt.savefig(new_path)
 plt.show()
+
+
+infectHist_path = os.path.join(os.getcwd(), 'plots', 'infectionHist.png')
 
 plt.figure(figsize=(22, 10))
 plt.hist(city[city['infected']==True].numInfected, bins=city.numInfected.max())
 plt.title('Num Infected Distribution')
 plt.xticks(rotation='vertical')
+plt.savefig(infectHist_path)
 plt.show()
 
 #%%
