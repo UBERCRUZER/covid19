@@ -11,7 +11,7 @@ SIR (Susceptible/Infected/Recovered) simulations include a release "shelter-in-p
 ![SIR plot with 60 day "shelter-in-place" ending date](https://raw.githubusercontent.com/UBERCRUZER/covid19/master/simPlots/SIR.png)
 
 
-![New case plot with 60 day "shelter-in-place" ending date](https://raw.githubusercontent.com/UBERCRUZER/covid19/master/simPlots/infectionHist.png)
+![New case plot with 60 day "shelter-in-place" ending date](https://raw.githubusercontent.com/UBERCRUZER/covid19/master/simPlots/new.png)
 
 
-![Histogram of people infected from one infected individual](https://raw.githubusercontent.com/UBERCRUZER/covid19/master/simPlots/new.png)
+![Histogram of people infected from one infected individual](https://raw.githubusercontent.com/UBERCRUZER/covid19/master/simPlots/infectionHist.png)
