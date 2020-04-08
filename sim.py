@@ -25,12 +25,13 @@ def initialInfect(city, initialCount, dateToday, recoveryTime):
     return (city)
 
 
-def contactSim(city, recoveryTime, date, contactRate=6, probInfection=.05):
+def contactSim(city, recoveryTime, date, lambdaPoiss=5, probInfection=.05):
 
     newInfections = 0 
     contagiousList = city[(city['infected']==True) & (city['recovered']==False) & 
                         (city['quarantined']==False)].index.tolist()
 
+    contactRate = int(np.random.poisson(lambdaPoiss,1))
     suceptableList = city.index.tolist()
 
     for i in contagiousList:
@@ -67,7 +68,7 @@ dayStart = 737521
 simDuration = 180
 
 # population of city
-population = 10000 
+population = 20000 
 
 # how long does the disease last?
 infectionDuration = 15
@@ -76,7 +77,7 @@ infectionDuration = 15
 initialInfections = 1
 
 # number of infections before quarantine starts
-quarantineInfectionStart = 400
+quarantineInfectionStart = 1500
 
 # days quarantine should last
 quarantineDuration = 60
@@ -110,6 +111,7 @@ for today in range(1+dayStart, simDuration+dayStart):
 
     if (len(city[city.infected==True]) < quarantineInfectionStart):
         # print('base')
+        # pre quarantine
         city, newInfections = contactSim(city, infectionDuration, today)
         quarantineDayStart = today
         quarantineDayEnd = today
@@ -117,13 +119,15 @@ for today in range(1+dayStart, simDuration+dayStart):
     elif ((len(city[city.infected==True]) > quarantineInfectionStart) & 
           (quarantineDayStart + quarantineDuration > today)):
         # print('in quarantine')
-        city, newInfections = contactSim(city, infectionDuration, today, contactRate=2)
+        # in quarantine 
+        city, newInfections = contactSim(city, infectionDuration, today, lambdaPoiss=1.3)
         quarantineDayEnd = today
     
     elif ((len(city[city.infected==True]) > quarantineInfectionStart) & 
           (quarantineDayStart + quarantineDuration < today)):
-        city, newInfections = contactSim(city, infectionDuration, today, contactRate=4)
         # print('end quarantine')
+        # after quarantine is over
+        city, newInfections = contactSim(city, infectionDuration, today, lambdaPoiss=2.8)
 
 
     city, newRecovered = convertRecovered(city, today)
@@ -155,7 +159,7 @@ dateRename = dict(zip(summary.index.tolist(), dateList))
 
 summary = summary.rename(index=dateRename)
 
-SIR_path = os.path.join(os.getcwd(), 'plots', 'SIR.png')
+SIR_path = os.path.join(os.getcwd(), 'simPlots', 'SIR.png')
 
 plt.figure(figsize=(22, 10))
 plt.plot(summary.susceptible.rolling(window=7).mean(), label='Susceptible', color='blue')
@@ -165,13 +169,13 @@ plt.title('SIR Simulation')
 plt.axvline(dt.fromordinal(quarantineDayStart), color='k', label='Quarantine Start')
 plt.axvline(dt.fromordinal(quarantineDayEnd), color='k', label='Quarantine End')
 plt.legend(loc='left')
-plt.ylim(top=population)
+plt.ylim(top=population+700)
 plt.xticks(rotation='vertical')
 plt.savefig(SIR_path)
 plt.show()
 
 
-new_path = os.path.join(os.getcwd(), 'plots', 'new.png')
+new_path = os.path.join(os.getcwd(), 'simPlots', 'new.png')
 
 plt.figure(figsize=(22, 10))
 plt.plot(summary.new.rolling(window=7).mean())
@@ -184,7 +188,7 @@ plt.savefig(new_path)
 plt.show()
 
 
-infectHist_path = os.path.join(os.getcwd(), 'plots', 'infectionHist.png')
+infectHist_path = os.path.join(os.getcwd(), 'simPlots', 'infectionHist.png')
 
 plt.figure(figsize=(22, 10))
 plt.hist(city[city['infected']==True].numInfected, bins=city.numInfected.max())
@@ -194,7 +198,3 @@ plt.savefig(infectHist_path)
 plt.show()
 
 #%%
-
-city.numInfected.mean()
-
-# %%
