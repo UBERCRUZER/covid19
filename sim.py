@@ -31,10 +31,11 @@ def contactSim(city, recoveryTime, date, lambdaPoiss=5, probInfection=.05):
     contagiousList = city[(city['infected']==True) & (city['recovered']==False) & 
                         (city['quarantined']==False)].index.tolist()
 
-    contactRate = int(np.random.poisson(lambdaPoiss,1))
+    # contactRate = int(np.random.poisson(lambdaPoiss,1))
     suceptableList = city.index.tolist()
 
     for i in contagiousList:
+        contactRate = int(np.random.poisson(lambdaPoiss,1))
         suceptableList.remove(i)
         if (len(suceptableList) < contactRate):
             contactRate = len(suceptableList)
